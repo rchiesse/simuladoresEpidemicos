@@ -1,0 +1,1123 @@
+
+# *
+# * FUNÇÃO: 																																							                    
+# *
+# * 	infectarBA(qtdVertices, grauMedioRede=4, orcamento=NULL, k=0.05, maxTamEstrategia=NULL, criterio="todosPorGrau", vecImportanciaGrau=c(0.5, 1, 2), repeticoes=30, vecThreshold=c(1,2,3), saida=c('p'))
+# *
+# * DESCRIÇÃO:
+# *		Esta função simula a evolução de uma epidemia em uma rede Barabasi-Albert.
+# * 	A rede é gerada estocasticamente pela própria função, com a quantidade de vértices informada.
+# *
+# * PARÂMETROS:                                                                                                                                                                 
+# *_____________________________________________________________________________________________________________________________________________________________________________
+# * 	  NOME	 	 |	   TIPO	  	 |  DESCRIÇÃO                                                                                                                               *
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *    qtdVertices   | 	 <inteiro> 	 |	A quantidade de vértices da rede.                                                                                                       *
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *   grauMedioRede	 | 	 <numeric> 	 |	O grau médio que a rede deverá ter. Aceita apenas valores inteiros.                                           	                  		*
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *     	 		 | 			 	 |	Valor disponível para formar o conjunto "O" da Estratégia de Semeadura, que contém os vértices inicialmente                             *
+# * 				 |	             |	infectados. O "custo" de cada vértice semeador, denotado por C(v), depende do grau deste, e é determinado pela seguinte função:         *
+# *                  |               |  C(v) = d(v)^importanciaGrau, onde d(v) é o grau do vértice 'v', e 'importanciaGrau' é um expoente que controla o peso do grau no custo. *
+# *                  |               |                                                                                                                                          *
+# *     		     |               |  Se passado o valor FALSE, assume-se que o orçamento é ilimitado e, consequentemente, o único limitador à quantidade de 	                *
+# *                  |   <numeric>	 |  vértices da estratégia será 'maxTamEstrategia'. Se 'maxTamEstrategia' tb não for informado, todos os vértices da                        *
+# *     orcamento    |      ou	     |  rede pertencerão à estratégia.																					                        *
+# *                  |     FALSE     |                                                                                                                                          *
+# *                  | 	             |  Se passado qualquer valor real positivo, o mesmo corresponderá ao orçamento total disponível.                                           *
+# *                  |               |                                                                                                                                          *
+# *                  |               |  Se orcamento==NULL (default), o mesmo é então estabelecido internamente, obedecendo à seguinte regra:                                   *
+# *                  |               |  "Se o orcamento não for informado, o mesmo assumirá o valor de 'k' VEZES O CUSTO DO GRAU MÉDIO, ou seja, orcamento = C(grauMedio)*k*V", *
+# *                  |               |  onde 'k' é um percentual definido abaixo, e V é o total de vértices da rede.                                                            *
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# * 				 |			  	 |  Multiplicador correspondente a um percentual da quantidade total de vértices da rede. Seu valor é utilizado para cálculo do orcamento,  *
+# * 		k		 |	 <numeric> 	 |  considerando a seguinte fórmula: "orcamento = C(gm) * k * V. Assim temos, por exemplo, para um k = 0.1 (ou seja, 10%), numa rede de 100 *
+# * 				 |			  	 |  vértices, grau médio = 4 e importância do grau = 1, um orçamento de 4^1 * 0.1 * 100 = 40.                                               *
+# * 				 |			  	 |	Esse parâmetro é ignorado caso o parâmetro 'orcamento' seja explicitamente estabelecido.                                                *
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# * 				 |	 		 	 |	Tamanho máximo do conjunto "O", da estratégia. Para certas análises pode ser conveniente limitar a qtd de vértices que compõem a        *
+# * 				 |			  	 |	estratégia, mesmo que o orçamento disponível permita novas inclusões.                                                                   *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	Se fornecido um valor < 1, o mesmo é ignorado e assume-se 'NULL'.                                                                       *
+# * maxTamEstrategia |	 <numeric>	 |	                                                                                                                                        *
+# * 				 |			  	 |	Se passado qualquer valor inteiro positivo, o mesmo corresponderá ao tamanho máximo de "O".                                             *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	Se maxTamEstrategia==NULL (default), não será imposto nenhum teto ao tamanho de "O". Nesse caso, "O" crescerá até o orçamento tornar-se *
+# * 				 |			  	 |	insuficiente ou até atingir o tamanho da rede (todos os vértices da rede pertencerem à estratégia)                                      *
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *     	 		 |				 |	Qual abordagem será adotada para determinar a estratégia, isto é, determinar o conjunto "O", dos vértices       				        *
+# * 	criterio	 |	<character>	 |	inicialmente infectados.                                                                                                                *
+# * 				 |			  	 |	Critérios possíveis: "maiorGrau", "menorGrau", "grauMediano", "aleatorio", "todosPorGrau", "closeness" e "betweenness".			        *
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *vecImportanciaGrau|	<num vector> |	Vetor das constantes reais que controlam a influência do grau sobre o custo. As simulações são repetidas para cada constante do vetor	*
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *    repeticoes	 |	 <numeric> 	 |	Quantas vezes o espalhamento da epidemia será simulado sobre a rede fornecida. 															*
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *   vecThreshold	 |	<num vector> |	Vetor dos valores inteiros 'a' >= 0. Para cada nó 'v' suscetível num dado tempo 't', se mais de 'a' vizinhos de 'v' estiverem           *
+# * 				 |			  	 |	infectados, então 'v' será infectado no tempo 't+1'.                                                                                    *
+# *----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------*
+# *   			 	 | 				 |	Define as informações de saída da execução e o tipo delas. Valores possíveis são:													    *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	'rpi' 	--> RESULTADOS POR ITERAÇÃO. Exibe no console as estatísticas gerais de cada iteração individualmente.                          *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	'aa' 	--> AÇÃO ATUAL. Informa no console o momento de início de cada etapa da simulação. Particularmente interessante                 *
+# * 				 |			  	 |				em simulações demoradas, permitindo que o usuário estime o tempo restante para a conclusão.                                 *
+# * 				 |			  	 |				                                                                                                                            *
+# * 				 |			  	 |	'F_x_T' --> Ativa a montagem do gráfico "FRAÇÃO DE INFECTADOS X TEMPO" mas não o exibe. É preciso que pelo menos um dentre os           *
+# * 				 |			  	 |				parâmetros 'pc' e 'gi' (descritos abaixo) estejam ativos para que o gráfico seja gerado em algum meio de saída.             *
+# * 				 |			  	 |				                                                                                                                            *
+# * 				 |			  	 |	'T_x_P' --> Ativa a montagem do gráfico "TEMPO TOTAL DA EPIDEMIA X POLÍTICA DA ESTRATÉGIA" mas não o exibe. É preciso que pelo menos um *
+# * 	saida		 | <char vector> |				dentre os parâmetros 'pc' e 'gi' (descritos abaixo) estejam ativos para que o gráfico seja gerado em algum meio de saída.   *
+# * 				 |			  	 |				                                                                                                                            *
+# * 				 |			  	 |	'F_x_P' --> Ativa a montagem do gráfico "FRAÇÃO TOTAL DE INFECTADOS X POLÍTICA DA ESTRATÉGIA" mas não o exibe. É preciso que pelo menos *
+# * 				 |			  	 |				um dentre os parâmetros 'pc' e 'gi' (descritos abaixo) estejam ativos para que o gráfico seja gerado em algum meio de saída.*
+# * 				 |			  	 |				                                                                                                                            *
+# * 				 |			  	 |	'DG_C' 	--> Ativa a montagem de 2 (dois) gráficos de DISTRIBUIÇÃO DE GRAU dos CONTRATADOS - a simples e a complementar cumulativa -     *
+# * 				 |			  	 |				mas não os exibe. É preciso que pelo menos um dentre os parâmetros 'pc' e 'gi' (descritos abaixo) estejam ativos para que 	*
+# * 				 |			  	 |				os gráficos sejam gerados em algum meio de saída. ATENÇAO: Esses gráficos dizem respeito somente aos vértices CONTRATADOS.	*
+# * 				 |			  	 |				                                                                                                                            *
+# * 				 |			  	 |	'pc' 	--> PLOTAR NO CONSOLE. Plota o(s) gráfico(s) ativo(s) na própria interface gráfica do R. Não impede a geração de arquivo de     *
+# * 				 |			  	 |				imagem para o(s) referido(s) gráfico(s). Ignorado caso nenhum gráfico esteja ativo. 										*
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	'gi' 	--> GERAR IMAGEM. Gera uma imagem em arquivo *.png para cada gráfico ativo. Os arquivos são salvos no working directory.   		*
+# * 				 |			  	 |				Pode ser utilizado junto com a opção 'gc'. Ignorado caso nenhum gráfico esteja ativo.										*
+# * 				 |			  	 |	            O nome do arquivo gerado segue o seguinte formato:                                                                          *
+# * 				 |			  	 |	            << baGame_AxB_tshX_aX_NNNN_gmX_Xv_Xsem.png >>                                                                               *
+# * 				 |			  	 |	            Isto é:                                                                                                                     *
+# * 				 |			  	 |	            	baGame - Natureza do grafo.                                                                                             *
+# * 				 |			  	 |	            	AxB 	- Nome do gráfico. "A" e "B" são substituídos pelas siglas dos gráficos reais.                                  *
+# * 				 |			  	 |	            	tshX	- Threshold. "X" é substituído pelo valor real.                                                                 *
+# * 				 |			  	 |	            	aX		- "alpha possui valor X". Corresponde à importância do grau. "X" é substituído pelo valor real.                 *
+# * 				 |			  	 |	            	NNNN	- Critério utilizado na simulação. "NNNN" é substituído pelo valor real.                                        *
+# * 				 |			  	 |	            	gmX		- Grau médio "X". "X" é substituído pelo valor real.                                                            *
+# * 				 |			  	 |	            	Xv		- Total de vértices da rede. "X" é substituído pelo valor real.                                                 *
+# * 				 |			  	 |	            	Xsem	- "X" semeadores (no máximo). Tamanho máximo do conjunto estratégia. "X" é substituído pelo valor real.         *
+# * 				 |			  	 |	            			  Só aparece na nomenclatura se 'maxTamEstrategia' é não nulo.                                                  *
+# * 				 |			  	 |	            	Kpc		- "K" porcento do total de vértices, onde 'K' é um parâmetro de entrada da função, definido mais acima.         *
+# * 				 |			  	 |	                          "K" é substituído pelo valor real.                                                                            *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	'p'		--> Padrão (default). Equivale a  "saida==c('aa', 'F_x_T', 'T_x_P', 'F_x_P', 'DG', 'gi')".                                      *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |			Por exemplo, se quisermos que a simulação gere saídas para a ação atual (exibida no console) e para os gráficos     			*
+# * 				 |			  	 |			em forma de imagem (valor default!), o argumento correspondente passado na chamada da simulação será:                           *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |				infectarBA( saida=c('aa', 'F_x_T', 'T_x_P', 'F_x_P', 'DG', 'gi'), <<demais parâmetros da simulação...>> )           		*
+# * 				 |			  	 |	            												OU                                                                          *
+# * 				 |			  	 |				infectarBA( saida=c('p'), <<demais parâmetros da simulação...>> )                          									*
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	Outra possibilidade é adicionar saídas ao padrão, utilizando o parâmetro 'p' junto de outro. Assim não é preciso reescrever todos os    *
+# * 				 |			  	 |	parâmetros quando esse for o caso desejado. Se, por exemplo, queremos que a saída contemple todas as condições do exemplo anterior, mas *
+# * 				 |			  	 |	que também plote os gráficos no console, o argumento na chamada da função será:                                                         *
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |				infectarBA( saida=c('p', 'pc'), <<demais parâmetros da simulação...>> )                          							*
+# * 				 |			  	 |	                                                                                                                                        *
+# * 				 |			  	 |	No caso de parâmetros repetidos, as repetições são ignoradas, isto é, "saida=c('aa','aa','p','gi')" equivale a "saida=c('p')"           *
+# * 				 |			  	 |	                                                                                                                                        *
+# *******************************************************************************************************************************************************************************
+# * AUTOR: Ronald Chiesse (rchiesse@gmail.com)                                                                                                                                  *
+# *******************************************************************************************************************************************************************************
+
+
+infectarBA = function(qtdVertices, grauMedioRede=4, orcamento=NULL, k=0.05, maxTamEstrategia=NULL, criterio="todosPorGrau", vecImportanciaGrau=c(0.5, 1, 2), repeticoes=30, vecThreshold=c(1,2,3), saida=c('p'))
+{
+
+ # ------------------------------------------------------------------------------------------------------------------------------------------ #
+ # --------------------------------------------------------- PARTE 1 - A REDE --------------------------------------------------------------- #
+ # ------------------------------------------------------------------------------------------------------------------------------------------ #
+ 
+ #Validação dos parâmetros de entrada:
+ criteriosValidos = c("maiorGrau", "menorGrau", "grauMediano", "aleatorio", "closeness", "betweenness", "todosPorGrau")
+ if( ! (criterio %in% criteriosValidos) )
+	return(
+			cat("\nO critério '",criterio,"' não foi reconhecido. Verifique se o parâmetro foi digitado corretamente.\n",
+					"Critérios válidos:\n\t\t\"maiorGrau\", \"menorGrau\", \"grauMediano\", \"aleatorio\", \"closeness\", \"betweenness\", \"todosPorGrau\"\n",
+					"\nSimulação cancelada.\n\n"
+			   )
+		  )
+
+ saidasValidas = c('rpi', 'aa', 'F_x_T', 'T_x_P', 'F_x_P', 'pc', 'gi', 'p')
+ for(item in saida)
+ {
+	if( ! (item %in% saidasValidas) )
+		return(
+				cat("\nA opção '",item,"', informada no parâmetro 'saida', não foi reconhecida. Verifique se a opção foi digitada corretamente.\n",
+						"Saídas válidas:\n\t\t'rpi', 'aa', 'F_x_T', 'T_x_P', 'F_x_P', 'pc', 'gi', 'p'\n",
+						"\nSimulação cancelada.\n\n"
+				   )
+			  )
+ }
+ 
+ 
+ ###########################################################################################################################
+ #	OBJETOS PRELIMINARES - determinados uma única vez, mesmo que a simulação se repita                                      
+                                                                                                                            
+ #Controle das saídas:                                                                                                      
+ SAIDA_PADRAO	   = 'p' %in% saida
+ GRAFICO__FxT 	   = SAIDA_PADRAO || ('F_x_T' %in% saida)
+ GRAFICO__TxP 	   = SAIDA_PADRAO || ('T_x_P' %in% saida)
+ GRAFICO__FxP 	   = SAIDA_PADRAO || ('F_x_P' %in% saida)
+ GRAFICOS__DG 	   = SAIDA_PADRAO || ('DG_C'  %in% saida)
+ GRAFICO_ATIVO 	   = (( GRAFICO__FxT || GRAFICO__TxP ) || GRAFICO__FxP) || GRAFICOS__DG
+ GERAR_IMAGEM 	   = SAIDA_PADRAO || (('gi' %in% saida) && GRAFICO_ATIVO)
+ ACAO_ATUAL 	   = SAIDA_PADRAO || ('aa' %in% saida)
+ PLOTAR_NO_CONSOLE = ('pc' %in% saida) && GRAFICO_ATIVO
+ RESULTADOS_POR_IT = 'rpi' %in% saida
+ PASTA_DE_SAIDA_OK = FALSE
+ 
+ diretorioDeTrabalho = getwd()
+ 
+ #Suprime as mensagens de warning geradas pelo método 'linePlot.CI':                                                        
+ options(warn=-1)                                                                                                           
+
+ if( ACAO_ATUAL )                                                                                                			
+ {                                                                                                                          
+	#Inicia a contagem do tempo computacional total que será gasto na simulação, incluindo as repetições:                   
+	tempoCompSimulacao = proc.time()                                                                                        
+	print(paste(Sys.time(), " ---------> Simulação iniciada."))                                                             
+ }                                                                                                                          
+
+ #Precisamos garantir que maxTamEstrategia é um valor inteiro e válido para a rede:                                         
+ if(is.null(maxTamEstrategia) || maxTamEstrategia < 1 || maxTamEstrategia > qtdVertices)                                    
+ 	maxTamEstrategia = qtdVertices   																	                    
+ else                                                                                                                       
+	maxTamEstrategia = round(maxTamEstrategia)  	# ---------> Garante um valor inteiro.                                  
+
+ #Auxiliar do cálculo do orçamento. Quando não fornecido, o mesmo deve ser redefinido a cada novo valor de 'importanciaGrau':
+ redefinirOrcamento = FALSE
+ 
+ if(criterio == "todosPorGrau")
+ {
+	criteriosASimular = c("maiorGrau", "menorGrau", "grauMediano", "aleatorio")                                             
+	abrevCriterio = c("ma","me","md","al")
+ }
+ else
+ {
+	criteriosASimular = c(criterio)
+	abrevCriterio = c(substr(criterio, start=1, stop=3))
+ }
+
+ criterioNomeArq = criterio
+ 
+ # Gráficos FxP por threshold (separados a cada alpha):
+ tabelaTsh = NULL
+ fracaoTotalPorCriterio__tshList = list()
+ posListaTsh = 1
+ for(i in 1:length(vecImportanciaGrau))
+ {
+ 	fracaoTotalPorCriterio__tshList[[i]] = matrix(ncol=2)
+ 	colnames(fracaoTotalPorCriterio__tshList[[i]]) = c("fracaoTotal", "tshRede")
+ }
+ 
+ grupoNomeCriterio = NULL
+ if(length(criteriosASimular) > 1)
+ {
+ 	for(i in vecImportanciaGrau )
+ 		grupoNomeCriterio = c(  grupoNomeCriterio,
+ 								rep(criteriosASimular[1], repeticoes), 
+ 								rep(criteriosASimular[2], repeticoes),
+ 								rep(criteriosASimular[3], repeticoes),
+ 								rep(criteriosASimular[4], repeticoes)
+ 							 )
+ }
+ else
+	grupoNomeCriterio = c(  rep(criteriosASimular[1], repeticoes * length(vecImportanciaGrau) ) )
+
+ eixoX_alpha = NULL
+ if(length(criteriosASimular) > 1)
+ {
+ 	for(i in vecImportanciaGrau )
+ 		eixoX_alpha = c(	eixoX_alpha,
+							rep(paste(abrevCriterio[1], i, sep=","), repeticoes), 
+							rep(paste(abrevCriterio[2], i, sep=","), repeticoes), 
+							rep(paste(abrevCriterio[3], i, sep=","), repeticoes), 
+							rep(paste(abrevCriterio[4], i, sep=","), repeticoes)
+						)
+ }
+ else
+	eixoX_alpha = c(  rep(paste(abrevCriterio[1], i, sep=""), repeticoes * length(vecImportanciaGrau) ) )
+
+ eixoX_tsh = NULL
+ if(length(criteriosASimular) > 1)
+ {
+ 	for(i in vecThreshold )
+ 		eixoX_tsh = c(	eixoX_tsh,
+						rep(paste(abrevCriterio[1], i, sep=","), repeticoes), 
+						rep(paste(abrevCriterio[2], i, sep=","), repeticoes), 
+						rep(paste(abrevCriterio[3], i, sep=","), repeticoes), 
+						rep(paste(abrevCriterio[4], i, sep=","), repeticoes)
+					)
+ }
+ else
+	eixoX_tsh = c(  rep(paste(abrevCriterio[1], i, sep=""), repeticoes * length(vecThreshold) ) )
+
+ if(PLOTAR_NO_CONSOLE && GRAFICO__FxT)
+	par(ask=TRUE)   # ---------> Exige que a tecla 'Enter' seja pressionada para plotar o gráfico seguinte.
+		
+ totalCenarios = length(vecThreshold) * length(vecImportanciaGrau)
+ cenarioAtual = 1
+ 	 
+ #	FIM - OBJETOS PRELIMINARES   							 		                           								
+ ###########################################################################################################################
+ 
+ for(threshold in vecThreshold)
+ {
+	# Gráfico FxP por alpha (importância do grau):
+	fracaoTotalPorCriterio__alpha = matrix(ncol=2)																						
+	colnames(fracaoTotalPorCriterio__alpha) = c("fracaoTotal", "alphaCusto")
+	
+	for(importanciaGrau in vecImportanciaGrau)
+	{
+		if(ACAO_ATUAL)
+		{	
+			cat("\n\n\n")
+			cat("           INICIANDO SIMULAÇÃO PARA CENÁRIO",cenarioAtual,"DE",totalCenarios,"( threshold =",threshold,"e alpha =", importanciaGrau,")...\n")
+			flush.console()
+		}
+		
+		#Redefine os data frames e, quando aplicável, o orçamento:
+		infectadosPorTempo = matrix(ncol=2)
+		colnames(infectadosPorTempo) = c("fracaoInfec", "tempoInfec")
+		tempoTotalPorCriterio = matrix(ncol=2)
+		colnames(tempoTotalPorCriterio) = c("tempoTotal", "grupo")
+		
+		distribuicaoGrau = data.frame()
+		distribuicaoGrau = rbind(distribuicaoGrau, c(NA,NA,NA))
+		colnames(distribuicaoGrau) = c("grau", "fracao", "grupo")
+		
+		distribuicaoGrauCumul = data.frame()
+		distribuicaoGrauCumul = rbind(distribuicaoGrauCumul, c(NA,NA,NA))
+		colnames(distribuicaoGrauCumul) = c("grau", "fracao", "grupo")
+		
+		labelCriterio = c("Maior grau", "Menor grau", "Grau mediano", "Aleatório", "Closeness", "Betweenness")
+		grupo = c(NA)
+		vecTempoTotal = numeric(length=repeticoes)
+		vecFracaoInfecTotal = numeric(length=repeticoes)
+		
+		if( redefinirOrcamento )
+			orcamento = NULL
+		
+		for(criterio in criteriosASimular)
+		{
+			indiceCriterioAtual = match(criterio, criteriosValidos)
+			if( ACAO_ATUAL || RESULTADOS_POR_IT )              
+				print(paste(Sys.time(), "      Simulando o critério '", labelCriterio[indiceCriterioAtual], "'..."))
+
+			fracaoInfec_simulacaoUnica = rep(NA, 1000)
+			maiorTempoDoCriterio = 0
+
+			#Variaveis criadas somente para melhor conveniência em determinadas expressões:
+			vetorEhDecrescente = criterio %in% c("maiorGrau", "closeness", "betweenness")	
+			vetorEhCrescente = criterio %in% c("menorGrau", "grauMediano")
+			
+			#Vetor auxiliar da montagem do data frame dos gráficos de distribuição de grau:
+			vecGrausContratados = c(NULL)
+
+			for(iteracao in 1:repeticoes)
+			{
+				if(ACAO_ATUAL)
+				{
+					print(paste(Sys.time(), "              Iteração", iteracao, "---> Determinando a estratégia..."))
+					flush.console()
+				}
+				
+				# Gera a rede:
+				rede = barabasi.game(qtdVertices, m=grauMedioRede/2, directed=FALSE)
+
+				#Inicializa o atributo 'nome' dos vértices                                             	
+				rede = set.vertex.attribute(rede, "name", c(1:qtdVertices), c(1:qtdVertices))             
+				novosInfectados = character(length=maxTamEstrategia)  										
+				graus = degree(rede, V(rede), mode="all", loops=FALSE)                                 
+
+				ptm = proc.time()	                                                                       
+				if(criterio=="closeness")                                                                 
+				{              																			
+					vetorCloseness = closeness(rede, mode="all", normalized=TRUE)                          
+					names(vetorCloseness) = get.vertex.attribute(rede, "name", index=V(rede))				
+					vetorCriterio = vetorCloseness                                                         
+				}                                                                                         
+				else if(criterio=="betweenness")                                                          
+				{                                                                                         
+					vetorBetweenness = betweenness(rede, directed=FALSE, normalized=FALSE, nobigint=TRUE)  
+					names(vetorBetweenness) = get.vertex.attribute(rede, "name", index=V(rede))				
+					vetorCriterio = vetorBetweenness                                                       
+				}                                                                                         
+				else                                                                                      
+				{                                                                                         
+					vetorCriterio = graus                                                                  
+				}                                                                                         
+				names(vetorCriterio) = get.vertex.attribute(rede, "name", index=V(rede))
+				
+				custoMinimo = sort(graus, method = "qu")
+				custoMaximo = custoMinimo[length(custoMinimo)]^importanciaGrau													
+				custoMinimo = custoMinimo[custoMinimo > 0][1]^importanciaGrau  # ---------> O mínimo deve ser maior que zero.
+				grauMedio = mean(graus)
+				if(is.null(orcamento))
+				{
+					redefinirOrcamento = TRUE
+					orcamento = round((grauMedio^importanciaGrau) * k * qtdVertices)
+				}
+				
+				totalVerticesInfectados = 0    # Indicará a performance final da estratégia - o total de nós infectados ao fim da epidemia.
+				vetorCriterio = sample(vetorCriterio)  # ---------> Importante para evitar que a escolha dos vértices seja determinística.
+				
+				if( ! (criterio == "aleatorio") )
+					vetorCriterio = sort(vetorCriterio, decreasing=vetorEhDecrescente, method = "qu")
+
+				#Nenhum vértice está infectado inicialmente
+				rede = set.vertex.attribute(rede, "infectadoEm", V(rede), -1)  # ---------> É muito mais rápido que "V(rede)$infectadoEm = -1"
+			 
+				if( !(orcamento==FALSE) )
+					orcamentoRestante = orcamento
+
+					
+				# ----------------------------------------------------------------------------------------------------------------------------------- #
+				# ---------------------------------------------------- PARTE 2 - A ESTRATÉGIA ------------------------------------------------------- #
+				# ----------------------------------------------------------------------------------------------------------------------------------- #
+			 
+				tempo = 0
+
+				# * 
+				# * Cria e pré aloca espaço para as listas, dando mais performance à inserção de elementos. 
+				# * Considerando o diâmetro da rede e o threshold, "1000" mostra-se um número arbitrário bem alto, 
+				# * suficiente para a grande maioria das simulações:
+				# *
+				verticesInfectados = vector("list", 1000)
+
+				#Estratégia
+				custoDoVertice = 0
+				custoEstrategia = 0
+				total = 1
+				vetorEstrategia = numeric(length=length(vetorCriterio))
+
+				if(criterio == "grauMediano")
+				{
+					grauMediano = round(median(vetorCriterio))
+					posicaoMediana = round((length(vetorCriterio) + 1)/2)
+					deslocamento = 1
+					dinheiroAcabou = FALSE
+					custoDoVertice = (vetorCriterio[posicaoMediana])^importanciaGrau
+					if( !(orcamento==FALSE) )
+					{
+						if(orcamentoRestante >= custoDoVertice)
+						{
+							orcamentoRestante = orcamentoRestante - custoDoVertice
+							vetorEstrategia[total] = names(vetorCriterio[posicaoMediana])
+							custoEstrategia = custoEstrategia + custoDoVertice
+							total = total + 1
+						}
+					}
+					else
+					{
+						vetorEstrategia[total] = names(vetorCriterio[posicaoMediana])
+						custoEstrategia = custoEstrategia + custoDoVertice
+						total = total + 1
+					}
+					
+					repeat
+					{
+						dinheiroAcabou = TRUE
+						elementoDir = vetorCriterio[posicaoMediana + deslocamento]
+						elementoEsq = vetorCriterio[posicaoMediana - deslocamento]
+						if( ! is.na(elementoDir) )
+						{
+							if( !(orcamento==FALSE) )
+							{
+								custoDoVertice = elementoDir^importanciaGrau
+								if(orcamentoRestante >= custoDoVertice)
+								{
+									vetorEstrategia[total] = names(elementoDir)
+									dinheiroAcabou = FALSE
+									orcamentoRestante = orcamentoRestante - custoDoVertice
+									custoEstrategia = custoEstrategia + custoDoVertice
+									total = total + 1
+								}
+							}
+							else
+							{
+								vetorEstrategia[total] = names(elementoDir)
+								dinheiroAcabou = FALSE
+								custoEstrategia = custoEstrategia + custoDoVertice
+								total = total + 1
+							}
+						}
+						
+						if(total > maxTamEstrategia || total > qtdVertices)
+						{
+							total = total - 1
+							break
+						}
+						
+						if( ! is.na(elementoEsq) )
+						{
+							if( !(orcamento==FALSE) )
+							{
+								custoDoVertice = elementoEsq^importanciaGrau
+								if(orcamentoRestante >= custoDoVertice)
+								{
+									vetorEstrategia[total] = names(elementoEsq)
+									dinheiroAcabou = FALSE
+									orcamentoRestante = orcamentoRestante - custoDoVertice
+									custoEstrategia = custoEstrategia + custoDoVertice
+									total = total + 1
+								}
+							}
+							else
+							{
+								vetorEstrategia[total] = names(elementoEsq)
+								dinheiroAcabou = FALSE
+								custoEstrategia = custoEstrategia + custoDoVertice
+								total = total + 1
+							}
+						}
+						
+						if(dinheiroAcabou || total > maxTamEstrategia || total > qtdVertices)
+						{
+							total = total - 1
+							break
+						}
+						
+						deslocamento = deslocamento + 1
+					}
+				}
+				else 	# ---------> Caso o critério não seja o de grau mediano...
+				{
+					if(orcamento==FALSE)	# ---------> O gasto é ilimitado? Se não foi estabelecido um orçamento, assume-se que sim.
+					{
+						repeat   
+						{
+							custoDoVertice = (vetorCriterio[total])^importanciaGrau
+							custoEstrategia = custoEstrategia + custoDoVertice
+							vetorEstrategia[total] = names(vetorCriterio[total])
+							if(total == maxTamEstrategia)
+								break
+							total = total + 1
+						}
+					}
+					
+					else	# ---------> O orçamento deve ser considerado...
+					{
+						if(orcamentoRestante >= custoMinimo)
+						{
+							indice = 1
+							repeat
+							{
+								custoDoVertice = (vetorCriterio[indice])^importanciaGrau
+								if(orcamentoRestante < custoDoVertice)
+								{
+									# Somente nos casos onde o vetor é decrescente ou não-ordenado é que faz sentido prosseguir a busca por vértices "mais baratos":
+									if(!vetorEhCrescente)
+									{
+										# Ainda assim, se o custo atual já corresponde ao mínimo, a compra não é feita e a busca termina.
+										if(custoDoVertice == custoMinimo || indice == qtdVertices) 
+										{
+											total = total - 1
+											break
+										}
+											
+										# Avançamos à posição seguinte no vetor de graus, continuando a busca por mais baratos:
+										indice = indice + 1
+										next
+									}
+									
+									# Se o vetor É CRESCENTE o custo só aumentará. A busca termina imediatamente:
+									total = total - 1
+									break
+								}
+								
+								# Nesse ponto é garantido que o dinheiro é suficiente. Compramos o vértice SE O SEU GRAU FOR MAIOR QUE ZERO:
+								if(custoDoVertice == 0)
+								{
+									if(vetorEhDecrescente || indice == qtdVertices)
+									{
+										total = total - 1
+										break
+									}
+									indice = indice + 1
+									next
+								}
+								
+								orcamentoRestante = orcamentoRestante - custoDoVertice
+								custoEstrategia = custoEstrategia + custoDoVertice
+								vetorEstrategia[total] = names(vetorCriterio[indice])
+								
+								if(total == maxTamEstrategia || indice == qtdVertices) 		# ---------> O conjunto estratégia atingiu seu tamanho máximo?
+									break
+								
+								total = total + 1
+								indice = indice + 1
+							}
+						}
+						else
+						{
+							total = total - 1
+						}
+					}
+				}
+				if(total == 0)
+					return("Orçamento insuficiente para custear a adesão de qualquer vértice à estratégia. Simulação Cancelada.")
+			 
+				novosInfectados = vetorEstrategia[1:total]
+				rede = set.vertex.attribute(rede, name="infectadoEm", index=novosInfectados, tempo)
+				
+				#Removendo possíveis valores 'NA' de 'novosInfectados' (pois ele foi inicializado com tamanho = 'maxTamEstrategia'):
+				novosInfectados = novosInfectados[1:total]
+				totalVerticesInfectados = total
+				verticesInfectados[[tempo + 1]] = novosInfectados
+				
+				if(GRAFICOS__DG)
+				{
+					# Tratamentos para os gráficos de distribuição de grau dos contratados:
+					vecGrausContratados = c(vecGrausContratados, degree(rede, V(rede)[name %in% novosInfectados]))
+				}
+				
+				# * Para o cálculo e montagem do gráfico "Fração de Infectados x Tempo".
+				# * Já temos os infectados quando "tempo == 0" na simulação atual! Armazenamos o valor para posterior cálculo (e gráfico) da fração de infectados:
+				fracaoInfec_simulacaoUnica[tempo + 1] = totalVerticesInfectados/qtdVertices
+				
+				#Quantidade de vértices da estratégia:
+				logTotalVerticesEstrategia = totalVerticesInfectados
+			 
+				logTempoCompEstrategia = proc.time() - ptm
+			 
+			 
+				# ----------------------------------------------------------------------------------------------------------------------------------- #
+				# --------------------------------------------------- PARTE 3 - A EPIDEMIA ---------------------------------------------------------- #
+				# ----------------------------------------------------------------------------------------------------------------------------------- #
+			 
+				ptm = proc.time()
+				vizinhos = vector()
+				
+				if(ACAO_ATUAL)
+				{
+					print(paste(Sys.time(), "              Iteração", iteracao, "---> Espalhando a epidemia..."))
+					flush.console()
+				}
+				
+				#Cada iteração corresponde a um tempo discreto:
+				repeat   # ---------> 'repeat' dispensa os testes e criação de vetor que seria utilizado num eventual "FOR", que seria por exemplo: "for(tempo in 1:tempoMax)"
+				{
+					tempo = tempo + 1
+					vizinhos = c(vizinhos, sample(unlist(neighborhood(rede, 1, novosInfectados, mode="all"))))
+					frequencias = table(vizinhos)
+					provaveisSuscetiveis = V(rede)[name %in% vizinhos & infectadoEm == -1]
+					suscetiveisDaVez = intersect(names(frequencias[frequencias > threshold]), provaveisSuscetiveis)
+					if(length(suscetiveisDaVez) == 0)	  # ---------> Verifica "se mais nenhum vértice foi infectado".
+					{
+						tempo = tempo - 1
+						break
+					}
+			 
+					rede = set.vertex.attribute(rede, name="infectadoEm", index=suscetiveisDaVez, tempo)
+					totalVerticesInfectados = totalVerticesInfectados + length(suscetiveisDaVez)
+					novosInfectados = suscetiveisDaVez
+					verticesInfectados[[tempo + 1]] = novosInfectados
+					
+					#Para o cálculo e montagem do gráfico "Fração de Infectados x Tempo":
+					fracaoInfec_simulacaoUnica[tempo + 1] = totalVerticesInfectados/qtdVertices
+				}
+
+				#Determina o maior tempo dentre todas as iterações para um determinado critério, para auxíliar a geração do gráfico 'FxT':
+				if( tempo > maiorTempoDoCriterio)
+					maiorTempoDoCriterio = tempo
+				
+				vecTempoTotal[iteracao] = tempo
+				vecFracaoInfecTotal[iteracao] = fracaoInfec_simulacaoUnica[tempo + 1]
+				
+				if(GRAFICO__FxT)
+				{
+					#Gráfico "Fração de Infectados x Tempo" - resultados da simulação armazenados para posterior cálculo da média de cada tempo:	
+					i = 1
+					repeat
+					{
+						infectadosPorTempo = rbind(infectadosPorTempo, c(fracaoInfec_simulacaoUnica[i], i - 1))
+						
+						if(i == tempo + 1)
+							break;
+						
+						i = i + 1
+					}
+				}
+
+				if(GRAFICO__TxP)
+				{
+					#Gráfico "Tempo total da Infecção x Política da Estratégia" - armazena o tempo total do critério corrente:
+					tempoTotalPorCriterio = rbind(tempoTotalPorCriterio, tempo)
+				}
+
+				if(GRAFICO__FxP)
+				{
+					#Gráfico "Fração total de Infectados x Política da Estratégia" - armazena a fração total do critério corrente:
+					fracaoTotalPorCriterio__alpha = rbind(fracaoTotalPorCriterio__alpha, c(vecFracaoInfecTotal[iteracao], importanciaGrau))
+					
+					# Realiza o "append" do data frame da importância do grau no data frame dos thresholds correspondentes:
+					fracaoTotalPorCriterio__tshList[[ posListaTsh ]] = rbind(
+																				fracaoTotalPorCriterio__tshList[[ posListaTsh ]], 
+																				c( 	vecFracaoInfecTotal[iteracao], threshold)
+																			)
+				}
+				
+				logTempoCompEpidemia = proc.time() - ptm
+			 
+			 
+				# ----------------------------------------------------------------------------------------------------------------------------------- #
+				# --------------------------------------------- PARTE 4 - SÍNTESE DA ITERAÇÃO ------------------------------------------------------- #
+				# ----------------------------------------------------------------------------------------------------------------------------------- #
+			 
+				#Dados gerais:
+				if(RESULTADOS_POR_IT)
+				{
+					print(paste("Total de vértices da rede: ", sprintf("%d", qtdVertices) ))
+					print(paste("Soma dos graus: ", sprintf("%d", sum(graus)) ))
+					print(paste("Grau médio: ", sprintf("%.2f", grauMedio) ))
+					print(paste("Custo mínimo: ", sprintf("%.2f", custoMinimo) ))
+					print(paste("Custo máximo: ", sprintf("%.2f", custoMaximo) ))
+					if( !(orcamento==FALSE) )
+					{
+						print(paste("Orçamento inicial: ", sprintf("%.2f", orcamento) ))
+						print(paste("Orçamento restante: ", sprintf("%.2f", orcamentoRestante)))
+					}
+					print(paste("Critério da estratégia: ", criterio))
+					print(paste("Threshold de infecção: ", threshold))
+					print(paste("Total de vértices da estratégia: ", logTotalVerticesEstrategia))
+					print(paste("Performance:"))
+					print(paste("       - absoluta: ", sprintf("%d", totalVerticesInfectados), " vértices"))
+					print(paste("       - relativa: ", sprintf("%.2f", (totalVerticesInfectados/qtdVertices)*100), "% dos vértices"  ))
+					print(paste("Custo da estratégia:"))
+					print(paste("       - absoluto: ", sprintf(  "%.2f", custoEstrategia  )))
+					if( !(orcamento==FALSE) )
+						print(paste("       - relativo: ", sprintf(  "%.2f", (custoEstrategia/orcamento)*100  ), "% do orçamento"))
+					else
+						print(paste("       - relativo: Indeterminado - O orçamento não foi especificado."))
+						
+					print(paste("Tempo discreto de espalhamento da epidemia: ", tempo))
+				 
+					#Performance por tempo:
+					parcial = 0
+					maiorPerformanceParcial = 0
+					tempoMaiorPerformanceParcial = 0
+					print(paste("Performance (total de vértices infectados) por tempo:"))
+					for(i in 1:(tempo + 1))
+					{
+						parcial = length(verticesInfectados[[i]])
+						print(paste("   tempo ", i - 1, " --> ", parcial))
+						if(parcial > maiorPerformanceParcial)
+						{
+							maiorPerformanceParcial = parcial
+							tempoMaiorPerformanceParcial = i - 1
+						}
+					}
+					print(paste("Melhor performance parcial: Tempo", sprintf("%d", tempoMaiorPerformanceParcial), ", com", sprintf("%d", maiorPerformanceParcial), "vértices infectados."))
+					print(paste("Tempo computacional gasto para determinar a estratégia (em segundos):"))
+					print(logTempoCompEstrategia)
+					print(paste("Tempo computacional gasto durante o processo de infecção (em segundos):"))
+					print(logTempoCompEpidemia)
+				} # ---------> FIM do "if(RESULTADOS_POR_IT)"
+			} # ---------> FIM do "for(iteracao in 1:repeticoes)"
+
+			if(GRAFICO__FxT)
+			{
+				#Complemento do data frame FxT para preservar a característica cumulativa (os tempos de infecção podem variar - devem ser nivelados)
+				i = 1
+				repeat
+				{
+					if(i == repeticoes + 1)
+						break;
+						
+					complemento = maiorTempoDoCriterio - vecTempoTotal[i]
+					if(complemento == 0)
+					{
+						i = i + 1
+						next
+					}
+					for(pos in 1:complemento)
+					{
+						infectadosPorTempo = rbind(infectadosPorTempo, c(vecFracaoInfecTotal[i], vecTempoTotal[i] + pos))
+					}
+					
+					i = i + 1
+				}
+				grupo = c( grupo, rep(labelCriterio[indiceCriterioAtual], (maiorTempoDoCriterio + 1) * repeticoes) )
+			}
+			
+			if(GRAFICOS__DG)
+			{	
+				#Calcula a distribuição de grau dos vértices coletados e insere os resultados no data frame para posterior plotagem do gráfico:
+				dist = table(vecGrausContratados)/length(vecGrausContratados)
+				distCumul = rev(cumsum(rev(dist)))
+				for(i in 1:length(dist))
+				{
+					grauPos = as.numeric(names(dist[i]))
+					nomeGrupo = labelCriterio[indiceCriterioAtual]
+					distribuicaoGrau = rbind(distribuicaoGrau, c(grauPos, dist[i], nomeGrupo))
+					distribuicaoGrauCumul = rbind(distribuicaoGrauCumul, c(grauPos, distCumul[i], nomeGrupo))
+				}
+			}
+		
+		} # ---------> FIM do "for(criterio in criteriosASimular)"
+		
+		#Referência da lista dos data frames para gráficos de threshold:
+		posListaTsh = posListaTsh + 1
+		if( posListaTsh > length(vecImportanciaGrau) )
+			posListaTsh = 1
+		
+		
+		# ---------------------------------------------------------------------------------------------------------------------------------------- #
+		# --------------------------------------------------------- PARTE 5 - GRÁFICOS ----------------------------------------------------------- #
+		# ---------------------------------------------------------------------------------------------------------------------------------------- #
+
+		traceLabel = sprintf("\ntsh=%d; gm=%.1f; a=%.1f;\nk=%.2f; rep=%d;\nv=%d\n", threshold, round(grauMedio), importanciaGrau, k, repeticoes, qtdVertices)
+		traceLabelDG = sprintf("\ntsh=%d; gm=%.1f; a=%.1f;\nk=%.2f; rep=%d;\nv=%d\n\n\n", threshold, round(grauMedio), importanciaGrau, k, repeticoes, qtdVertices)
+		
+		if( ! PASTA_DE_SAIDA_OK )
+		{
+			if( maxTamEstrategia < qtdVertices)
+				txtTamEstrategia = paste("_",maxTamEstrategia,"sem", sep="")
+			else
+				txtTamEstrategia = ""
+
+			# Prepara o diretório apropriado para armazenar os resultados da saída:
+			nomePastaSaida = paste("baGame_gm",round(grauMedio),"_",qtdVertices,"v_",txtTamEstrategia,"_",100*k,"pc_",repeticoes,"rep",sep="")
+			caminhoCompleto = file.path(diretorioDeTrabalho,nomePastaSaida)
+			dir.create(caminhoCompleto, showWarnings = FALSE)
+			setwd(caminhoCompleto)
+			PASTA_DE_SAIDA_OK = TRUE
+		}		
+		
+		if(GRAFICO__FxT)
+		{
+			#Gera os data frames a partir das matrizes e insere a coluna dos grupos correspondentes a cada linha:
+			infectadosPorTempo = as.data.frame(infectadosPorTempo)
+			infectadosPorTempo$criterioEstrategia = grupo
+			infectadosPorTempo = infectadosPorTempo[-1,]
+			
+			#Plota o gráfico de I(t) x t:
+			if(PLOTAR_NO_CONSOLE)
+			{
+				par(mar=c(4,4,0.4,0.4)+0.1)
+				lineplot.CI(	x.factor = tempoInfec, 
+								response = fracaoInfec, 
+								group = criterioEstrategia, 
+								data=infectadosPorTempo, 
+								xlab="Tempo", 
+								ylab="Fração de vértices infectados",
+								#xlim=c(0,28),
+								lty = "solid",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 1.8,
+								trace.label = traceLabel,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes)),
+								mgp=c(2.5,0.7,0)
+							)
+			}
+			if(GERAR_IMAGEM)
+			{		
+				nomeArquivo = paste("baGame_FxT_tsh",threshold,"_a",importanciaGrau,"_",criterioNomeArq,"_gm",round(grauMedio),"_",qtdVertices,"v",txtTamEstrategia,"_",100*k,"pc_",repeticoes,"rep.png",sep="")
+				Cairo(1800, 1200, nomeArquivo, bg="white", pointsize=35)
+				par(mar=c(4,4,0.4,0.4)+0.1)
+				lineplot.CI(	x.factor = tempoInfec, 
+								response = fracaoInfec, 
+								group = criterioEstrategia, 
+								data=infectadosPorTempo, 
+								xlab="Tempo", 
+								ylab="Fração de vértices infectados",
+								#xlim=c(0,28),
+								lty = "solid",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 1.8,
+								trace.label = traceLabel,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes)),
+								mgp=c(2.5,0.7,0)
+							)
+				dev.off()
+			}
+		}	
+		
+		if(GRAFICOS__DG)
+		{
+			#Remove os "NA"s, converte as colunas referentes aos eixos x e y para classe numérica e, finalmente, plota as distribuições:
+			distribuicaoGrau = distribuicaoGrau[-1,]
+			distribuicaoGrau[,1] = as.numeric(distribuicaoGrau[,1])
+			distribuicaoGrau[,2] = as.numeric(distribuicaoGrau[,2])
+			
+			distribuicaoGrauCumul = distribuicaoGrauCumul[-1,]
+			distribuicaoGrauCumul[,1] = as.numeric(distribuicaoGrauCumul[,1])
+			distribuicaoGrauCumul[,2] = as.numeric(distribuicaoGrauCumul[,2])
+
+			if(PLOTAR_NO_CONSOLE)
+			{
+				# Distribuição simples:
+				par(mar=c(4,4,1.4,5.4)+0.1, xpd=NA, oma=c(0,0,0,0), bty="l")
+				lineplot.CI(	x.factor = grau, 
+								response = fracao, 
+								group = grupo,
+								data=distribuicaoGrau, 
+								xlab="Grau (k)", 
+								ylab="P[D = k] dos vértices contratados",
+								log="xy", xlog=TRUE, ylog=TRUE,
+								lty = "solid",
+								type="p",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 1.8,
+								trace.label = traceLabelDG,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes)),
+								mgp=c(2.5,0.7,0)
+							)
+							
+				# Distribuição Complementar Cumulativa:
+				lineplot.CI(	x.factor = grau, 
+								response = fracao, 
+								group = grupo,
+								data=distribuicaoGrauCumul, 
+								xlab="Grau (k)", 
+								ylab="P[D >= k] dos vértices contratados",
+								log="xy", xlog=TRUE, ylog=TRUE,
+								lty = "solid",
+								type="p",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 1.8,
+								trace.label = traceLabelDG,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes)),
+								mgp=c(2.5,0.7,0)
+							)
+			}
+			if(GERAR_IMAGEM)
+			{		
+				# Distribuição simples:
+				nomeArquivo = paste("baGame_DistGrauSimples_tsh",threshold,"_a",importanciaGrau,"_",criterioNomeArq,"_gm",round(grauMedio),"_",qtdVertices,"v",txtTamEstrategia,"_",100*k,"pc_",repeticoes,"rep.png",sep="")
+				Cairo(1800, 1200, paste(nomeArquivo,sep=""), bg="white", pointsize=35)
+				par(mar=c(4,4,1.4,5.4)+0.1, xpd=NA, oma=c(0,0,0,0), bty="l")
+				lineplot.CI(	x.factor = grau, 
+								response = fracao, 
+								group = grupo,
+								data=distribuicaoGrau, 
+								xlab="Grau (k)", 
+								ylab="P[D = k] dos vértices contratados",
+								log="xy", xlog=TRUE, ylog=TRUE,
+								lty = "solid",
+								type="p",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 0.5,
+								trace.label = traceLabelDG,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes)),
+								mgp=c(2.5,0.7,0)
+							)
+				dev.off()
+				
+				# Distribuição Complementar Cumulativa:
+				nomeArquivo = paste("baGame_DistGrauCumul_tsh",threshold,"_a",importanciaGrau,"_",criterioNomeArq,"_gm",round(grauMedio),"_",qtdVertices,"v",txtTamEstrategia,"_",100*k,"pc_",repeticoes,"rep.png",sep="")
+				Cairo(1800, 1200, nomeArquivo, bg="white", pointsize=35)
+				par(mar=c(4,4,1.4,5.4)+0.1, xpd=NA, oma=c(0,0,0,0), bty="l")
+				lineplot.CI(	x.factor = grau, 
+								response = fracao, 
+								group = grupo,
+								data=distribuicaoGrauCumul,
+								xlab="Grau (k)", 
+								ylab="P[D >= k] dos vértices contratados",
+								log="xy", xlog=TRUE, ylog=TRUE,
+								lty = "solid",
+								type="p",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 0.5,
+								trace.label = traceLabelDG,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes)),
+								mgp=c(2.5,0.7,0)
+							)
+				dev.off()
+			}
+		}
+		
+		if(GRAFICO__TxP)
+		{
+			if(length(criteriosASimular) > 1)
+			{
+				grupo = c(  rep(criteriosASimular[1], repeticoes), 
+							rep(criteriosASimular[2], repeticoes),
+							rep(criteriosASimular[3], repeticoes),
+							rep(criteriosASimular[4], repeticoes)
+						 )
+			}
+			else
+				grupo = c(  rep(criteriosASimular[1], repeticoes) )
+		 
+			tempoTotalPorCriterio = as.data.frame(tempoTotalPorCriterio)
+			tempoTotalPorCriterio = tempoTotalPorCriterio[-1,]
+			tempoTotalPorCriterio$criterioEstrategia = grupo
+			tempoTotalPorCriterio = tempoTotalPorCriterio[,-2]
+
+			#Plota o gráfico de Tempo total x Critério:
+			if(PLOTAR_NO_CONSOLE)
+			{
+				par(mar=c(4,4,0.4,0.4)+0.1)
+				lineplot.CI(	x.factor = criterioEstrategia, 
+								response = tempoTotal, 
+								group = criterioEstrategia, 
+								data=tempoTotalPorCriterio, 
+								xlab="Política (critério) da estratégia", 
+								ylab="Tempo total da epidemia",
+								lty = "solid",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 2,
+								trace.label = traceLabel,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes))
+							)
+			}
+			if(GERAR_IMAGEM)
+			{
+				nomeArquivo = paste("baGame_TxP_tsh",threshold,"_a",importanciaGrau,"_",criterioNomeArq,"_gm",round(grauMedio),"_",qtdVertices,"v",txtTamEstrategia,"_",100*k,"pc_",repeticoes,"rep.png",sep="")
+				Cairo(1800, 1200, nomeArquivo, bg="white", pointsize=35)
+				par(mar=c(4,4,0.4,0.4)+0.1)
+				lineplot.CI(	x.factor = criterioEstrategia, 
+								response = tempoTotal, 
+								group = criterioEstrategia, 
+								data=tempoTotalPorCriterio, 
+								xlab="Política (critério) da estratégia", 
+								ylab="Tempo total da epidemia",
+								lty = "solid",
+								pch=c(15:18),
+								col = c("red", "black", "blue", "springgreen3"),
+								lwd = 2,
+								trace.label = traceLabel,
+								ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes))			#ci.fun= function(x) c(min(x), max(x))
+							)
+				dev.off()
+			}
+		}
+		cenarioAtual = cenarioAtual + 1
+		
+	} # ---------> FIM do "for(importanciaGrau in vecImportanciaGrau)"
+
+
+	if(GRAFICO__FxP)
+	{
+		traceLabel = sprintf("\ntsh = %d; gm = %.1f;\nk=%.2f; rep=%d;\nv=%d\n", threshold, round(grauMedio), k, repeticoes, qtdVertices)
+		fracaoTotalPorCriterio__alpha = as.data.frame(fracaoTotalPorCriterio__alpha)
+		fracaoTotalPorCriterio__alpha = fracaoTotalPorCriterio__alpha[-1,]
+		fracaoTotalPorCriterio__alpha$criterioEstrategia = grupoNomeCriterio
+		fracaoTotalPorCriterio__alpha$eixoX = eixoX_alpha
+		
+		#Plota o gráfico de Fração total x Critério:
+		if(PLOTAR_NO_CONSOLE)
+		{
+			par(mar=c(4,4,0.4,0.4)+0.1)
+			lineplot.CI(	x.factor = eixoX,
+							response = fracaoTotal, 
+							group = criterioEstrategia, 
+							data=fracaoTotalPorCriterio__alpha, 
+							xlab="[Política, Alpha]", 
+							ylab="Fração total de infectados",
+							type="p",
+							lty = "solid",
+							pch=c(15:18),
+							col = c("red", "black", "blue", "springgreen3"),
+							#col = c("magenta3", "green3", "gold"),
+							lwd = 2,
+							trace.label = traceLabel,
+							err.width=0.3,
+							ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes))
+						)
+		}
+		if(GERAR_IMAGEM)
+		{
+			nomeArquivo = paste("baGame_FxP_tsh",threshold,"_",criterioNomeArq,"_gm",round(grauMedio),"_",qtdVertices,"v",txtTamEstrategia,"_",100*k,"pc_",repeticoes,"rep.png",sep="")
+			Cairo(1800, 1200, nomeArquivo, bg="white", pointsize=35)
+			par(mar=c(4,4,0.4,0.4)+0.1)
+			lineplot.CI(	x.factor = eixoX, 
+							response = fracaoTotal, 
+							group = criterioEstrategia,
+							data=fracaoTotalPorCriterio__alpha, 
+							xlab="[Política, Alpha]", 
+							ylab="Fração total de infectados",
+							type="p",
+							lty = "solid",
+							pch=c(15:18),
+							col = c("red", "black", "blue", "springgreen3"),
+							lwd = 2,
+							trace.label = traceLabel,
+							err.width=0.3,
+							ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes))
+						)
+			dev.off()
+		}
+	}
+ } # ---------> FIM do "for(threshold in vecThreshold)"
+ 
+ if(GRAFICO__FxP)
+ {
+	for(posListaTsh in 1:length(fracaoTotalPorCriterio__tshList))
+	{	
+		traceLabel = sprintf("\na = %.1f; gm = %.1f;\nk=%.2f; rep=%d;\nv=%d\n", vecImportanciaGrau[posListaTsh], round(grauMedio), k, repeticoes, qtdVertices)
+		tabelaTsh = as.data.frame(fracaoTotalPorCriterio__tshList[[posListaTsh]])
+		tabelaTsh = tabelaTsh[-1,]
+		tabelaTsh$criterioEstrategia = grupoNomeCriterio
+		tabelaTsh$eixoX = eixoX_tsh
+		
+		#Plota o gráfico de Fração total x Critério:
+		if(PLOTAR_NO_CONSOLE)
+		{
+			par(mar=c(4,4,0.4,0.4)+0.1)
+			lineplot.CI(	x.factor = eixoX, 
+							response = fracaoTotal, 
+							group=criterioEstrategia, 
+							data=tabelaTsh, 
+							xlab="[Política, Threshold]", 
+							ylab="Fração total de infectados",
+							type="p",
+							lty = "solid",
+							pch=c(15:18),
+							col = c("red", "black", "blue", "springgreen3"),
+							lwd = 2,
+							trace.label = traceLabel,
+							err.width=0.3,
+							ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes))
+						)
+		}
+		if(GERAR_IMAGEM)
+		{
+			nomeArquivo = paste("baGame_FxP_a",vecImportanciaGrau[posListaTsh],"_",criterioNomeArq,"_gm",round(grauMedio),"_",qtdVertices,"v",txtTamEstrategia,"_",100*k,"pc_",repeticoes,"rep.png",sep="")
+			Cairo(1800, 1200, nomeArquivo, bg="white", pointsize=35)
+			par(mar=c(4,4,0.4,0.4)+0.1)
+			lineplot.CI(	x.factor = eixoX, 
+							response=fracaoTotal, 
+							group=criterioEstrategia, 
+							data=tabelaTsh, 
+							xlab="[Política, Threshold]",  
+							ylab="Fração total de infectados",
+							type="p",
+							lty = "solid",
+							pch=c(15:18),
+							col = c("red", "black", "blue", "springgreen3"),
+							#col = c("magenta3", "green3", "gold"),
+							lwd = 2,
+							trace.label = traceLabel,
+							err.width=0.3,
+							ci.fun = function(x) c(mean(x) - qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes), mean(x) + qt(.975,repeticoes-1)*sd(x)/sqrt(repeticoes))
+						)
+			dev.off()
+		}
+	}
+ }
+
+ # Restaura o Diretório de Trabalho (Working Directory), que havia sido alterado para geração dos arquivos de saída:
+ setwd(diretorioDeTrabalho)
+  
+ if(ACAO_ATUAL)
+ {
+	#Log do console - término da simulação:
+	print(paste("Tempo computacional total gasto (em segundos):"))
+	print(proc.time() - tempoCompSimulacao)
+	print(paste(Sys.time(), " --> Simulação Concluída."))
+	cat("\nINFORMAÇÕES DO SISTEMA:\n")   # ---------> O comando cat() interpreta caracteres especiais. No caso, '\n' gera uma quebra de linha.
+	print(Sys.info())
+ }
+}
+
+# ------------------------------------------------------------------------------------------------------------------------------------------ #
+# ------------------------------------------------------------      FIM      --------------------------------------------------------------- #
+# ------------------------------------------------------------------------------------------------------------------------------------------ #
