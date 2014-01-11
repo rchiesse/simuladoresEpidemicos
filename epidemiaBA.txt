@@ -412,35 +412,40 @@ infectarBA = function(qtdVertices, grauMedioRede=4, orcamento=NULL, k=0.05, maxT
 						custoEstrategia = custoEstrategia + custoDoVertice
 						total = total + 1
 					}
-					
+					procurarADireita = TRUE
 					repeat
 					{
 						dinheiroAcabou = TRUE
-						elementoDir = vetorCriterio[posicaoMediana + deslocamento]
 						elementoEsq = vetorCriterio[posicaoMediana - deslocamento]
-						if( ! is.na(elementoDir) )
+						
+						if(procurarADireita)
 						{
-							if( !(orcamento==FALSE) )
+							elementoDir = vetorCriterio[posicaoMediana + deslocamento]
+							if( ! is.na(elementoDir) )
 							{
-								custoDoVertice = elementoDir^importanciaGrau
-								if(orcamentoRestante >= custoDoVertice)
+								if( !(orcamento==FALSE) )
+								{
+									custoDoVertice = elementoDir^importanciaGrau
+									if(orcamentoRestante >= custoDoVertice)
+									{
+										vetorEstrategia[total] = names(elementoDir)
+										dinheiroAcabou = FALSE
+										orcamentoRestante = orcamentoRestante - custoDoVertice
+										custoEstrategia = custoEstrategia + custoDoVertice
+										total = total + 1
+									}
+									else
+										procurarADireita = FALSE
+								}
+								else
 								{
 									vetorEstrategia[total] = names(elementoDir)
 									dinheiroAcabou = FALSE
-									orcamentoRestante = orcamentoRestante - custoDoVertice
 									custoEstrategia = custoEstrategia + custoDoVertice
 									total = total + 1
 								}
 							}
-							else
-							{
-								vetorEstrategia[total] = names(elementoDir)
-								dinheiroAcabou = FALSE
-								custoEstrategia = custoEstrategia + custoDoVertice
-								total = total + 1
-							}
 						}
-						
 						if(total > maxTamEstrategia || total > qtdVertices)
 						{
 							total = total - 1
